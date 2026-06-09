@@ -6,58 +6,58 @@ Developer onboarding docs for the Trajectoire CAP (TCG) **production** systems. 
 
 ```mermaid
 flowchart LR
-    user(["👤 Users<br/>analysts · traders · admins"])
-    feeds[/"📈 External market-data feeds<br/>Yahoo · CBOE · iVolatility · Deribit<br/>Bloomberg · IQFeed · ~18 vendors"/]
-    allasso[/"Allasso API<br/>allasso.app"/]
+    user(["👤 Users<br/>Analysts, traders & admins"])
+    feeds[/"📈 Market data providers<br/>Daily prices, options & volatility"/]
+    allasso[/"Allasso API<br/>External market-data service"/]
 
-    subgraph platform["Core platform — trajectoirecap.platform.*"]
+    subgraph platform["Web platform & backend"]
         direction TB
-        front["platform.front<br/>Angular web UI · EKS"]
-        eventfront["platform.event.front<br/>Angular sign-up · archived"]
-        svc["platform.parent · svc<br/>Spring Boot REST API<br/>EKS · JWT · :8080"]
-        jobs["platform.parent · batch jobs<br/>ECS Fargate · EventBridge"]
+        front["platform.front<br/>Main web app to monitor portfolios, P&L & signals"]
+        eventfront["platform.event.front<br/>Old sign-up form for a 2023 event — retired"]
+        svc["platform.parent · svc<br/>Central backend serving data & logic to the apps"]
+        jobs["platform.parent · jobs<br/>Scheduled AWS jobs: load market data & compute risk / P&L / signals"]
     end
 
-    subgraph signals["Signals — trajectoirecap.signals.*"]
+    subgraph signals["Trading signals"]
         direction TB
-        board["signals.board<br/>Dash dashboard · local"]
-        rest["signals.rest<br/>FastAPI + APScheduler"]
+        board["signals.board<br/>Dashboard to explore trading signals & backtests"]
+        rest["signals.rest<br/>Computes the trading signals and serves them"]
     end
 
     subgraph standalone["Standalone tools"]
         direction TB
-        sim["platform.simulator<br/>Java backtester · local"]
-        victor["victor<br/>Shiny · Posit Connect"]
+        sim["platform.simulator<br/>Backtests strategies on historical prices"]
+        victor["victor<br/>Dashboard tracking VIX-strategy performance"]
     end
 
-    tcgsw["TCG-software<br/>desktop app · separate repo"]
+    tcgsw["TCG-software<br/>New desktop app for data exploration & backtesting"]
 
-    subgraph stores["Data stores"]
+    subgraph stores["Databases & cache"]
         direction TB
-        mongo[("MongoDB · tcg-rs<br/>6 DBs · private VPC")]
-        dwh[("Postgres · dwh<br/>RDS")]
-        redis[("Redis")]
+        mongo[("MongoDB<br/>Main database: market data, positions & signals")]
+        dwh[("Postgres dwh<br/>Data warehouse for analytics")]
+        redis[("Redis<br/>Fast cache for the latest signals")]
     end
 
-    user -->|"web UI"| front
-    user -->|"dashboard"| board
-    user -->|"dashboard"| victor
-    user -.->|"desktop app"| tcgsw
+    user -->|"uses"| front
+    user -->|"uses"| board
+    user -->|"uses"| victor
+    user -.->|"uses"| tcgsw
 
-    front -->|"REST / JWT"| svc
-    eventfront -.->|"/event-register"| svc
+    front -->|"data"| svc
+    eventfront -.->|"sign-ups"| svc
 
-    feeds --> jobs
-    jobs -->|"ingest · write"| mongo
-    svc <-->|"read / write"| mongo
-    svc -->|"write via migration"| dwh
+    feeds -->|"market data"| jobs
+    jobs -->|"writes"| mongo
+    svc <-->|"reads / writes"| mongo
+    svc -->|"feeds"| dwh
 
-    board -->|"HTTP"| rest
+    board -->|"signals"| rest
     rest <-->|"cache"| redis
 
-    sim <-->|"direct read / write"| mongo
-    victor -->|"HTTPS"| allasso
-    tcgsw -.->|"SSM tunnel"| mongo
+    sim -->|"reads"| mongo
+    victor -->|"data"| allasso
+    tcgsw -.->|"reads"| mongo
 
     classDef live fill:#dcf5dc,stroke:#2e7d32,color:#111;
     classDef localtool fill:#eceff1,stroke:#78909c,color:#111;
@@ -76,7 +76,7 @@ flowchart LR
     class tcgsw dev;
 ```
 
-**Legend** — 🟩 live deployed service · ⬜ local/analyst tool · 🟦 data store · 🟧 external feed/API · 🟪 users · pink dashed = separate project (TCG-software) · faded dashed = archived. Arrows show a few representative flows, **not** every call — see the detailed [System map](#system-map) below for hosts, ports, and exact collections.
+**Legend** — 🟩 live & in daily use · ⬜ run locally by analysts · 🟦 database / cache · 🟧 external data source · 🟪 users · pink = new separate project · faded = retired. Each box says what the component *does*; arrows show the main flows of data and usage (not every connection). Technical detail — stacks, hosts, ports, exact collections — is in the [detailed system map](#system-map) and per-folder docs below.
 
 ## Folder tree
 
