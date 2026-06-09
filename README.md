@@ -2,6 +2,82 @@
 
 Developer onboarding docs for the Trajectoire CAP (TCG) **production** systems. One folder per prod repo, plus `mongodb/` (cluster contents + connection method) and `sql/` (the `dwh` Postgres warehouse). Target reader: a developer who must start working in these systems with nothing but these docs. Source code lives elsewhere (AWS CodeCommit, `eu-central-1`); this repo is docs only.
 
+## System map at a glance
+
+```mermaid
+flowchart LR
+    user(["👤 Users<br/>analysts · traders · admins"])
+    feeds[/"📈 External market-data feeds<br/>Yahoo · CBOE · iVolatility · Deribit<br/>Bloomberg · IQFeed · ~18 vendors"/]
+    allasso[/"Allasso API<br/>allasso.app"/]
+
+    subgraph platform["Core platform — trajectoirecap.platform.*"]
+        direction TB
+        front["platform.front<br/>Angular web UI · EKS"]
+        eventfront["platform.event.front<br/>Angular sign-up · archived"]
+        svc["platform.parent · svc<br/>Spring Boot REST API<br/>EKS · JWT · :8080"]
+        jobs["platform.parent · batch jobs<br/>ECS Fargate · EventBridge"]
+    end
+
+    subgraph signals["Signals — trajectoirecap.signals.*"]
+        direction TB
+        board["signals.board<br/>Dash dashboard · local"]
+        rest["signals.rest<br/>FastAPI + APScheduler"]
+    end
+
+    subgraph standalone["Standalone tools"]
+        direction TB
+        sim["platform.simulator<br/>Java backtester · local"]
+        victor["victor<br/>Shiny · Posit Connect"]
+    end
+
+    tcgsw["TCG-software<br/>desktop app · separate repo"]
+
+    subgraph stores["Data stores"]
+        direction TB
+        mongo[("MongoDB · tcg-rs<br/>6 DBs · private VPC")]
+        dwh[("Postgres · dwh<br/>RDS")]
+        redis[("Redis")]
+    end
+
+    user -->|"web UI"| front
+    user -->|"dashboard"| board
+    user -->|"dashboard"| victor
+    user -.->|"desktop app"| tcgsw
+
+    front -->|"REST / JWT"| svc
+    eventfront -.->|"/event-register"| svc
+
+    feeds --> jobs
+    jobs -->|"ingest · write"| mongo
+    svc <-->|"read / write"| mongo
+    svc -->|"write via migration"| dwh
+
+    board -->|"HTTP"| rest
+    rest <-->|"cache"| redis
+
+    sim <-->|"direct read / write"| mongo
+    victor -->|"HTTPS"| allasso
+    tcgsw -.->|"SSM tunnel"| mongo
+
+    classDef live fill:#dcf5dc,stroke:#2e7d32,color:#111;
+    classDef localtool fill:#eceff1,stroke:#78909c,color:#111;
+    classDef archived fill:#f5f5f5,stroke:#bdbdbd,color:#777,stroke-dasharray:4 4;
+    classDef store fill:#e3f2fd,stroke:#1565c0,color:#111;
+    classDef ext fill:#fff3e0,stroke:#ef6c00,color:#111;
+    classDef actor fill:#ede7f6,stroke:#5e35b1,color:#111;
+    classDef dev fill:#fce4ec,stroke:#ad1457,color:#111,stroke-dasharray:5 5;
+
+    class front,svc,jobs,rest,victor live;
+    class board,sim localtool;
+    class eventfront archived;
+    class mongo,dwh,redis store;
+    class feeds,allasso ext;
+    class user actor;
+    class tcgsw dev;
+```
+
+**Legend** — 🟩 live deployed service · ⬜ local/analyst tool · 🟦 data store · 🟧 external feed/API · 🟪 users · pink dashed = separate project (TCG-software) · faded dashed = archived. Arrows show a few representative flows, **not** every call — see the detailed [System map](#system-map) below for hosts, ports, and exact collections.
+
 ## Folder tree
 
 ```
