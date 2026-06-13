@@ -54,7 +54,7 @@ GROUP BY 1, 2 ORDER BY 1;
 A family *including* its spot needs the spot symbol explicitly (e.g. `root_symbol = 'BTC' OR symbol = 'BTC_USD'`) — spot naming (`BTC_USD`) differs from the contract root (`BTC`) in the source.
 
 ### 3. Option underlyings: `underlying_id` is NULL for 8 of 10 roots → slice by `root_symbol`
-564,293 options carry a **NULL `underlying_id`**: their source `rootUnderlying` is a roll-key root (GOLD, BTC, ETH, EURUSD, JPYUSD, IND_NASDAQ_100, T_NOTE_10_Y, T_BOND) that does not resolve to an instrument row. Only **OPT_SP_500 and OPT_VIX** resolve to real INDEX rows. So in `v_option_chain`, `underlying_symbol` is NULL for those roots — **slice their chains by `dim_instrument.root_symbol` (joined on `option_instrument_id`), not by `underlying_symbol`**:
+564,293 options carry a **NULL `underlying_id`**: their source `rootUnderlying` is a roll-key root (`GOLD`, `BTC`, `ETH`, `EURUSD`, `JPYUSD`, `IND_NASDAQ_100`, `T_NOTE_10_Y`, `T_BOND`) that does not resolve to an instrument row. Only the options with `root_symbol` **`IND_SP_500`** (S&P 500 options, 422,447) and **`IND_VIX`** (VIX options, 59,700) resolve to real INDEX rows via `underlying_id`. So in `v_option_chain`, `underlying_symbol` is NULL for the eight non-resolving roots — **slice their chains by `dim_instrument.root_symbol` (joined on `option_instrument_id`), not by `underlying_symbol`**:
 ```sql
 -- ETH option chain on a date (underlying_id is NULL → filter root_symbol):
 SELECT v.*
@@ -68,7 +68,7 @@ Note: index options (SPX/NDX) are listed on the **E-mini future**, so their symb
 `fact_option_greeks.days_to_expiry` preserves the feed's own DTE, which means it is **NULL for feeds that omit it — including IVOLATILITY, the source for most index/future/rate options**. `WHERE days_to_expiry BETWEEN ...` silently returns nothing for those. When NULL, derive: `dim_instrument.expiration - trade_date`.
 
 ### 5. `adj_close` is sparse → fall back to `close`
-`adj_close` (split/dividend-adjusted) exists **only for instruments with corporate actions** — in current data, the ETFs and the one fund (Yahoo-style feeds). It is NULL everywhere else by design (indexes are computed levels; futures/options roll; FX is a rate). Use `adj_close` for long-horizon total-return math **when present, else fall back to `close`**.
+`adj_close` (split/dividend-adjusted close, for long-horizon total-return math) is populated **only where the source feed supplies it — in practice the YAHOO feed**: ~38% of YAHOO index bars, ~68% of YAHOO ETF bars, 100% of YAHOO FX bars. It is **always NULL** for the COINGECKO (crypto FX), BLOOMBERG (the fund), and IVOLATILITY (futures/options) feeds, and sparse even within YAHOO. It is a **provider artifact, not a corporate-actions flag** — do not assume an instrument "has" or "lacks" adjustments from it. Rule: use `adj_close` **when present, else fall back to `close`**.
 
 ### 6. Deribit crypto premiums are in coin, not USD
 DERIBIT crypto-option premiums (OPT_BTC / OPT_ETH) in `fact_price_eod.close` / `v_option_chain.option_close` are quoted in the **underlying coin**, not USD. Multiply by the coin/USD spot (available as the forex pair, e.g. `ETH_USD`) to dollarize before any P&L or moneyness math.
