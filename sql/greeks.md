@@ -58,7 +58,7 @@ Where greeks are missing, TCG computes an **estimate** so the chains are not emp
 - **Model:** Black-76 (option on a forward), **European**, calendar-day TTM/365, IV inverted from the option's mid price. This reuses the production `tcg.engine.options.pricing` kernel.
 - **Rate:** a **fixed rate**, recorded with the data. **VIX uses a flat `r = 4%`** (chosen to give theta a realistic interest-carry component; this deliberately differs from the engine's live `r = 0`, so computed VIX theta is an estimate on its own stated convention, not what the engine would price live).
 - **Underlying / forward:**
-  - **VIX** → the matching-expiry `FUT_VIX` future close (VIX options are settled on the VIX **future**, not the index). VIX **weeklies** with no matching monthly future are **left as a documented gap** in the first pass.
+  - **VIX** → the matching-expiry `FUT_VIX` future close (VIX options are settled on the VIX **future**, not the index): the forward is the close of the FUT_VIX contract whose expiration equals the option's. This applies to **monthlies and weeklies alike** — any VIX option that has a same-expiry future is priced. Only options with **no matching future** at all are skipped (and logged).
   - **Crypto (ETH, BTC gaps)** → the front `FTS_{BTC,ETH}_USD` future close (spot `BTC_USD`/`ETH_USD` as fallback). Deribit premiums are quoted **in the coin** — they are **dollarized** (× coin/USD spot) before inversion so premium and forward share units.
 
 **These are estimates, validated by construction, not reconstructions of the vendor.** The pricer is proven mathematically correct (golden-tested against the engine); for the gap families there is no vendor reference, so correctness is established by sanity properties — ATM delta ≈ ±0.5, gamma/vega > 0, put/call sign, positive finite IV — rather than by matching a vendor number. Delta and IV are comparable to vendor conventions; **gamma/vega/theta are on the house `r`=fixed convention and will not be on the same basis as the IVOLATILITY rows for the vendor-greeked families.**
@@ -82,11 +82,11 @@ SELECT * FROM tcg_instruments.fact_option_greeks WHERE greek_source = 'computed'
 
 ## 6. Status
 
-| Family | Plan |
+| Family | Status |
 |---|---|
-| `IND_VIX` monthlies | computed approximation (Black-76 on `FUT_VIX`, fixed rate) |
-| `IND_VIX` weeklies | documented gap (no matching monthly future) — deferred |
-| `ETH`, `BTC` gaps | computed approximation (front crypto future, dollarized premium) |
+| `IND_VIX` (monthlies + weeklies with a matching future) | **DONE** — 3,179,438 computed greek rows (`greek_source='computed'`, Black-76 @ r=4%) loaded into `fact_option_greeks` |
+| `IND_VIX` options with no matching future | skipped + logged (82,564 bars); plus 243,275 skipped where IV could not be inverted (deep-ITM-degenerate, below-intrinsic, no-quote, above-max) |
+| `ETH`, `BTC` gaps | NOT yet done — deferred to a later round (same method: front crypto future, dollarized premium) |
 | vendor-greeked families | unchanged (`greek_source = 'vendor'`) |
 
-Coverage of the computed fill is reflected by the `greek_source = 'computed'` rows; re-run the §1 query to see current state.
+Coverage of the computed fill is reflected by the `greek_source = 'computed'` rows; re-run the §1 query to see current state. As of the VIX round: 3,179,438 computed + 102,957,348 vendor.
