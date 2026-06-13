@@ -76,6 +76,9 @@ DERIBIT crypto-option premiums (OPT_BTC / OPT_ETH) in `fact_price_eod.close` / `
 ### 7. Expect NULLs in `v_option_chain`
 The view is a UNION ALL of greeks-bearing and quotes-only days. A row can have greeks with NULL quotes (no bar that day) or quotes with NULL greeks (no greeks that day — e.g. Deribit ETH options, which are quotes-only). Handle NULLs before arithmetic. NaN never appears — every numeric column is NaN-guarded by a CHECK.
 
+### 8. Greeks: missing for some families, and two provenances → see [`greeks.md`](greeks.md)
+Not every option-bar has greeks (VIX & ETH have none; BTC partial), and the loaded greeks are the **IVOLATILITY vendor's** own numbers (`r ≠ 0`, undocumented convention) — which we can reproduce for **delta/IV** but **not** for gamma/vega/theta. Missing greeks are filled with a **clearly-tagged computed approximation** (`greek_source = 'computed'`, Black-76 on the matching future, fixed rate). **Do not mix `greek_source` conventions for cross-family gamma/vega/theta analysis.** Full detail, the why, and the caveats: **[`sql/greeks.md`](greeks.md)**.
+
 ### Amendment 3 — no vol-surface table (yet)
 Vol surfaces were deferred out of the backfill (source is `tcg.volatilitySurface`, outside `tcg-instrument`) and the empty `fact_vol_surface` table was dropped. There is **no surface table today**; it returns with its own table when the surfaces phase lands. Its definition is preserved in `ddl_simple.sql`.
 
