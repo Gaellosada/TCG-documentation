@@ -56,7 +56,7 @@ Reverse-engineering those constants by fitting to the existing numbers is possib
 Where greeks are missing, TCG computes an **estimate** so the chains are not empty, and marks it so it is never confused with vendor data.
 
 - **Model:** Black-76 (option on a forward), **European**, calendar-day TTM/365, IV inverted from the option's mid price. This reuses the production `tcg.engine.options.pricing` kernel.
-- **Rate:** a **fixed rate** (the engine's `r = 0` convention by default; a non-zero fixed constant may be used per family where it materially improves the theta estimate — recorded with the data).
+- **Rate:** a **fixed rate**, recorded with the data. **VIX uses a flat `r = 4%`** (chosen to give theta a realistic interest-carry component; this deliberately differs from the engine's live `r = 0`, so computed VIX theta is an estimate on its own stated convention, not what the engine would price live).
 - **Underlying / forward:**
   - **VIX** → the matching-expiry `FUT_VIX` future close (VIX options are settled on the VIX **future**, not the index). VIX **weeklies** with no matching monthly future are **left as a documented gap** in the first pass.
   - **Crypto (ETH, BTC gaps)** → the front `FTS_{BTC,ETH}_USD` future close (spot `BTC_USD`/`ETH_USD` as fallback). Deribit premiums are quoted **in the coin** — they are **dollarized** (× coin/USD spot) before inversion so premium and forward share units.
